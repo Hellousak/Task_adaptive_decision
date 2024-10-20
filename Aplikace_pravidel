@@ -1,0 +1,80 @@
+import pandas as pd
+import ast
+
+# načtení datasetu
+file_path = r"C:\Users\Helena\Downloads\rai_adaptive_decision_task_data.csv"
+df = pd.read_csv(file_path)
+
+
+# převod 'detected_groups' na seznam pro správnou kontrolu hodnot
+def parse_detected_groups(value):
+    try:
+        return ast.literal_eval(value) if pd.notna(value) else []
+    except (ValueError, SyntaxError):
+        return []
+
+df['detected_groups'] = df['detected_groups'].apply(parse_detected_groups)
+
+# pravidla pro třízení
+# kombinace indikátorů zda je to FRAUD nebo LEGITIMATE
+def decision_rule(row):
+    detected_groups = [group.strip().lower() for group in
+                       row['detected_groups']]  # Převést všechny indikátory na malá písmena a odstranit mezery
+
+    # kombinace indikátorů pro LEGITIMATE
+    if 'trusted_fingerprint' in detected_groups:
+        return 'approved'
+    elif len(detected_groups) == 0:
+        return 'approved'
+
+
+    # kombinace indikátorů pro FRAUD
+    elif 'modification_indicators' in detected_groups and (
+            'digital_document_indicators' in detected_groups or 'low_quality_indicators' in detected_groups):
+        return 'declined'
+    elif 'transaction_clustering_indicators' in detected_groups:
+        return 'declined'
+    elif 'photoshop_indicators' in detected_groups or 'editor_indicators' in detected_groups:
+        return 'declined'
+
+    # dotřídění na základě SCORE
+    elif row['score'].lower() == 'high_risk':
+        return 'manual review'
+    elif row['score'].lower() in ['normal', 'trusted']:
+        return 'approved'
+    elif row['score'].lower() == 'warning' and not any(indicator in detected_groups for indicator in
+                                                       ['modification_indicators', 'photoshop_indicators',
+                                                        'editor_indicators', 'transaction_clustering_indicators']):
+        return 'approved'
+
+    elif row['score'].lower() == 'warning':
+        return 'manual review'
+    else:
+        return 'manual review'
+
+
+def manual_review_label(x):
+    if x == 'manual review':
+        return 'yes'
+    else:
+        return 'no'
+
+# aplikace pravidel na dataset
+df['decision'] = df.apply(decision_rule, axis=1)
+
+# aktualizace označení manuální kontroly
+df['manual_review'] = df['decision'].apply(manual_review_label)
+
+# výsledná rozhodnutí
+print(df[['detected_groups', 'decision']])
+
+# rozdělení rozhodnutí
+decision_counts = df['decision'].value_counts()
+print(f"Rozdělení dokumentů podle rozhodnutí:\n{decision_counts}")
+
+# analýza přesnosti rozhodnutí na základě labelů
+fraud_approved = df[(df['label'] == 'fraud') & (df['decision'] == 'approved')]
+legitimate_declined = df[(df['label'] == 'legitimate') & (df['decision'] == 'declined')]
+
+print("Počet schválených fraud dokumentů:", len(fraud_approved))
+print("Počet zamítnutých legitimate dokumentů:", len(legitimate_declined))
