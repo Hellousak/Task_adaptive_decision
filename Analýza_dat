@@ -1,0 +1,33 @@
+import pandas as pd
+
+# načtení CSV souboru
+df = pd.read_csv(r"C:\Users\Helena\Downloads\rai_adaptive_decision_task_data.csv")
+
+# 5 řádků pro náhled dat
+print(df.head())
+
+# informace o datasetu 
+print(df.info())
+
+# základní statistiky o číselných sloupcích
+print(df.describe())
+
+#  hodnoty ve sloupci 'label'
+print(df['label'].value_counts())
+
+# indikátory v 'detected_groups' pro fraud/legitimate
+# hodnoty pro dokumenty s label 'fraud'
+fraud_docs = df[df['label'] == 'fraud']
+print(fraud_docs['detected_groups'].value_counts())
+
+# pro legitimate
+legit_docs = df[df['label'] == 'legitimate']
+print(legit_docs['detected_groups'].value_counts())
+
+# počet indikátorů v dokumentu
+# seznam všech indikátorů
+all_indicators = df['detected_groups'].dropna().apply(lambda x: x.strip('{}').split(', ')).explode()
+
+# počty jednotlivých indikátorů
+indicator_counts = all_indicators.value_counts()
+print("\nPočty jednotlivých indikátorů:\n", indicator_counts)
